@@ -25,8 +25,8 @@ bias_transcripts <- getBiasTranscripts(
           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/Bias\ Transcripts/Bias\ Visits\ with\ 2\ transcripts\ each\ (clinician_supporting)')
 )
 table(bias_transcripts$speaker)
-write.csv(table(bias_transcripts$speaker),'bias_speaker.csv')
-write.csv(table(bias_transcripts$speaker,bias_transcripts$file_id),'bias_speakerByFile.csv')
+# write.csv(table(bias_transcripts$speaker),'bias_speaker.csv')
+# write.csv(table(bias_transcripts$speaker,bias_transcripts$file_id),'bias_speakerByFile.csv')
 
 # for SDM transcripts:
 sdm_transcripts <- getSDMTranscripts(
@@ -34,8 +34,8 @@ sdm_transcripts <- getSDMTranscripts(
            '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/SDM\ Transcripts/SDM\ visits\ with\ 2\ clinicians\ each')
 )
 table(sdm_transcripts$speaker)
-write.csv(table(sdm_transcripts$speaker),'SDM_speaker.csv')
-write.csv(table(sdm_transcripts$speaker,sdm_transcripts$file_id),'SDM_speakerByFile.csv')
+# write.csv(table(sdm_transcripts$speaker),'SDM_speaker.csv')
+# write.csv(table(sdm_transcripts$speaker,sdm_transcripts$file_id),'SDM_speakerByFile.csv')
 
 # for Connects transcripts:
 connects_transcripts <- getConnectsTranscripts(
@@ -43,9 +43,11 @@ connects_transcripts <- getConnectsTranscripts(
            '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/CONNECTS\ Transcripts/CONNECTS\ visits\ with\ 2\ clinicians')
 )
 table(connects_transcripts$speaker)
-write.csv(table(connects_transcripts$speaker),'connects_speaker.csv')
-write.csv(table(connects_transcripts$speaker,connects_transcripts$file_id),'connects_speakerByFile.csv')
+# write.csv(table(connects_transcripts$speaker),'connects_speaker.csv')
+# write.csv(table(connects_transcripts$speaker,connects_transcripts$file_id),'connects_speakerByFile.csv')
 
+
+# combining transcripts and cleaning speaker labels
 cmb_transcripts <- bind_rows(
   bias_transcripts,
   sdm_transcripts,
