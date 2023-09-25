@@ -12,12 +12,6 @@ library(tidyverse)
 library(here)
 
 
-######################
-######################
-# for BIAS transcripts:
-######################
-######################
-
 getBiasTranscripts <- function(dirs) {
   
   transcript_df <- data.frame(
@@ -29,6 +23,11 @@ getBiasTranscripts <- function(dirs) {
     text_pieces = integer(),
     text_remainder = character(),
     file_type = character()
+  )
+  
+  errors <- data.frame(
+    file_id = character(),
+    n_tables = integer()
   )
   
   for (dir in dirs) { 
@@ -66,6 +65,7 @@ getBiasTranscripts <- function(dirs) {
         transcript_df <- bind_rows(transcript_df,df)
       } else {
         print(paste('Too many tables for:',f))
+        errors <- rbind(data.frame(file_id = f, n_tables = tbl_no),errors)
       }
     }
   }
@@ -77,14 +77,12 @@ getBiasTranscripts <- function(dirs) {
       # speaker = recode(speaker, 'doctor' = 'dr','mom' = 'mother'),
       study = 'bias'
     )
+  if (dim(errors)[1] > 0) {
+    print(errors)
+    write.csv(errors, 'transcriptIngestErrors_SDM.csv')}
   return(transcript_df)
 }
 
-######################
-######################
-# for SDM transcripts:
-######################
-######################
 
 getSDMTranscripts <- function(dirs) {
   
@@ -98,6 +96,13 @@ getSDMTranscripts <- function(dirs) {
     text_remainder = character(),
     file_type = character()
   )
+  
+  errors <- data.frame(
+    file_id = character(),
+    n_tables = integer()
+  )
+  
+  
   for (dir in dirs) {
    
     fNames <- list.files(
@@ -123,10 +128,11 @@ getSDMTranscripts <- function(dirs) {
         df$sequence <- seq(1:nrow(df))
         df$file_type <- file_type
         transcript_df <- rbind(transcript_df,df)
-      } else if (tbl_no == 1) {
-        print(paste('Hmm... one table for:',f))
-      } else if (tbl_no == 2) {
-        df <- docxtractr::docx_extract_tbl(t, 2, header = FALSE) %>%
+      } else if (tbl_no == 1 | tbl_no == 2) {
+        # print(paste('Hmm... one table for:',f))
+        # errors <- rbind(data.frame(file_id = f, n_tables = tbl_no),errors)
+      # } else if (tbl_no == 2) {
+        df <- docxtractr::docx_extract_tbl(t, tbl_no, header = FALSE) %>%
           mutate(
             V1 = stringr::str_remove(V1, pattern = " .*"),
             V1 = tolower(V1),
@@ -138,6 +144,7 @@ getSDMTranscripts <- function(dirs) {
         transcript_df <- bind_rows(transcript_df,df)
       } else {
         print(paste('more than 2 tables for:',f))
+        errors <- rbind(data.frame(file_id = f, n_tables = tbl_no),errors)
         }
     }
   } # end of directory loop 
@@ -149,14 +156,13 @@ getSDMTranscripts <- function(dirs) {
       # speaker = recode(speaker, 'doctor' = 'dr', 'physician' = 'dr','mom' = 'mother'),
       study = 'sdm'
     )
+  
+  if (dim(errors)[1] > 0) {
+    print(errors)
+    write.csv(errors, 'transcriptIngestErrors_SDM.csv')}
   return(transcript_df)
 }
 
-######################
-######################
-# for CONNECTS transcripts:
-######################
-######################
 
 getConnectsTranscripts <- function(dirs) {
   
@@ -170,7 +176,12 @@ getConnectsTranscripts <- function(dirs) {
     text_remainder = character(),
     file_type = character()
   )
-
+  
+  errors <- data.frame(
+    file_id = character(),
+    n_tables = integer()
+  )
+  
   for (dir in dirs) {
     
     fNames <- list.files(
@@ -178,10 +189,11 @@ getConnectsTranscripts <- function(dirs) {
       pattern = '*.docx')
     
     for (f in fNames) {
-      file_type <- if_else(is.na(stringr::str_match(f,"d_(.*?).docx")[[1,2]]), 'single_clinician',stringr::str_match(f,"d_(.*?).docx")[[1,2]])
+      # file_type <- if_else(is.na(stringr::str_match(f,"d_(.*?).docx")[[1,2]]), 'single_clinician',stringr::str_match(f,"d_(.*?).docx")[[1,2]])
+      file_type <- if_else(grepl('clinician',f,fixed = TRUE), 'clinician','supporting')
       t <- docxtractr::read_docx(here(dir,f))
       tbl_no <- docxtractr::docx_tbl_count(t)
-      print(paste0(f,'; number of tables: ',tbl_no)) 
+      print(paste0(f,'; number of tables: ',tbl_no," and file type:",file_type)) 
       
       if (tbl_no == 2) {
         df <- docxtractr::docx_extract_tbl(t, 2, header = FALSE) %>%
@@ -194,10 +206,12 @@ getConnectsTranscripts <- function(dirs) {
           ) %>%
           rename('speaker' = V1,'speech' = V2)
         df$sequence <- seq(1:nrow(df))
+        df$file_type <- file_type
         
         transcript_df <- bind_rows(transcript_df,df)
       } else {
         print(paste('SKIPPING... Something other than 2 tables for:',f))
+        errors <- rbind(data.frame(file_id = f, n_tables = tbl_no),errors)
       }
       
       } # end of F loop
@@ -210,10 +224,27 @@ getConnectsTranscripts <- function(dirs) {
       speaker = recode(speaker, 'doctor' = 'dr', 'physician' = 'dr','mom' = 'mother'),
       study = 'connects'
     )
+  if (dim(errors)[1] > 0) {
+    print(errors)
+    write.csv(errors, 'transcriptIngestErrors_SDM.csv')}
   return(transcript_df)
 }
 
-# General function for reading transcripts from word docs
 
-# read in function with options for body_text or table; if table, need table_num
+# for BIAS transcripts:
+bias_transcripts <- getBiasTranscripts(
+  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/Bias\ Transcripts/Bias_Visits_with_1_clinician_surgeon',
+           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/Bias\ Transcripts/Bias\ Visits\ with\ 2\ transcripts\ each\ (clinician_supporting)')
+)
 
+# for SDM transcripts:
+sdm_transcripts <- getSDMTranscripts(
+  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/SDM\ Transcripts/SDM\ visits\ with\ one\ clinician',
+           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/SDM\ Transcripts/SDM\ visits\ with\ 2\ clinicians\ each')
+)
+
+# for Connects transcripts:
+connects_transcripts <- getConnectsTranscripts(
+  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/CONNECTS\ Transcripts/CONNECTS\ visits\ with\ 1\ clinician',
+           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/CONNECTS\ Transcripts/CONNECTS\ visits\ with\ 2\ clinicians')
+)

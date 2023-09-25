@@ -10,42 +10,23 @@
 library(tidyverse)
 library(here)
 library(config)
-source('1_transciptingest.R')
+library(runner)
 
-######################
-######################
+############################################
+############################################
 # read in transcripts:
-######################
-######################
+############################################
+############################################
 
+source(here('1_transcriptIngest.R'))
 
-# for BIAS transcripts:
-bias_transcripts <- getBiasTranscripts(
-  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/Bias\ Transcripts/Bias_Visits_with_1_clinician_surgeon',
-          '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/Bias\ Transcripts/Bias\ Visits\ with\ 2\ transcripts\ each\ (clinician_supporting)')
-)
-table(bias_transcripts$speaker)
-# write.csv(table(bias_transcripts$speaker),'bias_speaker.csv')
-# write.csv(table(bias_transcripts$speaker,bias_transcripts$file_id),'bias_speakerByFile.csv')
+############################################
+############################################
+# read in transcripts:
+############################################
+############################################
 
-# for SDM transcripts:
-sdm_transcripts <- getSDMTranscripts(
-  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/SDM\ Transcripts/SDM\ visits\ with\ one\ clinician',
-           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/SDM\ Transcripts/SDM\ visits\ with\ 2\ clinicians\ each')
-)
-table(sdm_transcripts$speaker)
-# write.csv(table(sdm_transcripts$speaker),'SDM_speaker.csv')
-# write.csv(table(sdm_transcripts$speaker,sdm_transcripts$file_id),'SDM_speakerByFile.csv')
-
-# for Connects transcripts:
-connects_transcripts <- getConnectsTranscripts(
-  dirs = c('/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/CONNECTS\ Transcripts/CONNECTS\ visits\ with\ 1\ clinician',
-           '/Volumes/LSM/Boss\ Peds\ Surgery\ Transcripts\ (LSM)/CONNECTS\ Transcripts/CONNECTS\ visits\ with\ 2\ clinicians')
-)
-table(connects_transcripts$speaker)
-# write.csv(table(connects_transcripts$speaker),'connects_speaker.csv')
-# write.csv(table(connects_transcripts$speaker,connects_transcripts$file_id),'connects_speakerByFile.csv')
-
+source(here('2_transcriptCleaning.R'))
 
 # combining transcripts and cleaning speaker labels
 cmb_transcripts <- bind_rows(
@@ -53,10 +34,76 @@ cmb_transcripts <- bind_rows(
   sdm_transcripts,
   connects_transcripts
 ) %>%
-  mutate(
-    speaker = case_match(speaker,
-                         c('dr', 'doctor','physician') ~ 'dr',
-                         .default = speaker)
-  )
+  cleanRoles(.) %>%
+  strcutureFiles(.) # makes sure supporting in before index, etc. 
 
-write.csv(table(cmb_transcripts$speaker),'cmbd_speakers.csv')
+keep_cols <- c('speaker','speech','file_id', 'sequence', 're_sequence','study', 'spkr_reclass','file_study_id','file_id_full',"spkr_reclass_top_level")
+cmb_transcripts_cleanText <- cleanSpeech(
+  df = cmb_transcripts[keep_cols],
+  speechCol = 'speech',
+  word_count_thresh = 2 # will include only lines with more than two words
+)
+
+smthd <- dropRolesAndSmoothe(
+  df = cmb_transcripts_cleanText, 
+  target_roles = c('clinician','parent'), 
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level', 
+  seq_col = 're_sequence', 
+  speech_col = 'speech') %>% 
+  select(-to_drop)
+
+windowed <- window_transcripts(
+  df = smthd, 
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level', 
+  speech_col = 'speech_sm', 
+  window = 8, 
+  collapse = " ") %>%
+  filter(speech_agg_wc > 0)
+write.csv(windowed,'windowed.csv')
+# run liwc
+windowed_liwcd <- read.csv('LIWC-22 Results - windowed - LIWC Analysis.csv')
+
+
+smthd %>%
+  group_by(file_study_id,spkr_reclass_top_level) %>%
+  summarize(speech_agg = paste(speech_sm, collapse = ' ')) %>% # speech_sm is the non-windowed text
+  openxlsx::write.xlsx(.,file = 'conv.xlsx')
+# run liwc
+conv_liwcd <- read.csv('LIWC-22 Results - conv - LIWC Analysis.csv')
+
+############################################
+############################################
+# make matching and accommodation measures:
+############################################
+############################################
+
+source(here('3_accomodationMetrics.R'))
+
+convLSM_df <- getConvLSM(
+  df = conv_liwcd,
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level',
+  vars_to_match = c('auxverb','article','adverb','ipron','prep','negate','conj','quantity','ppron')
+    )
+rwLSM_df <- getRwLSM(
+  df = windowed_liwcd, 
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level') 
+
+
+rw.rLSM.by.timePoint <- getAccomodation(
+  df = windowed_liwcd, 
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level',
+  breaks = 4)
+
+getRwLSMByRow(
+  df = windowed_liwcd, 
+  file_col = 'file_study_id',
+  spkr_col = 'spkr_reclass_top_level')
+
+cmbdMetrics_df <- full_join(
+  rwLSM_df,convLSM_df, rw.rLSM.by.timePoint,
+  by = 'file_study_id')
