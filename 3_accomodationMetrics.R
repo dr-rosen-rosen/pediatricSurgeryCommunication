@@ -7,6 +7,8 @@
 ######## 
 ##################################
 ##################################
+library(runner)
+library(tidyverse)
 
 
 getConvLSM <- function(df,file_col,spkr_col,vars_to_match) {
@@ -21,7 +23,7 @@ getConvLSM <- function(df,file_col,spkr_col,vars_to_match) {
         values_from = 'liwc_score') %>%
       rowwise() %>%
       mutate(
-        lsm = (1 - (abs(pick(3) - pick(4)) / (pick(3) + pick(4) + .001)))
+        lsm = (1 - (abs(pick(3) - pick(4)) / (pick(3) + pick(4) + .001))) # this is selection the columns representing speakers, regardless of their names
       ) %>% 
       ungroup() %>%
       select(!!sym(file_col),matching_vars,lsm) %>%
@@ -120,7 +122,9 @@ getRwLSMbySegment <- function(df, file_col, spkr_col, breaks) {
     select(rw.rlsm,!!sym(file_col),!!sym(spkr_col)) %>%
     group_by(!!sym(file_col),!!sym(spkr_col)) %>%
     mutate(
-      time.point = cut(row_number(), b = breaks, labels = FALSE) - 1) %>%
+      # the cut function allows chunking into a dynamically specified number of bits
+      time.point = cut(row_number(), b = breaks, labels = FALSE) - 1
+      ) %>%
     ungroup() %>%
     group_by(!!sym(file_col),!!sym(spkr_col), time.point) %>%
     summarize(rw.rlsm = mean(rw.rlsm, na.rm = TRUE)) %>%

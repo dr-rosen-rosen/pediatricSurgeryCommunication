@@ -22,7 +22,7 @@ source(here('1_transcriptIngest.R'))
 
 ############################################
 ############################################
-# read in transcripts:
+# clean transcripts:
 ############################################
 ############################################
 
@@ -92,6 +92,11 @@ rwLSM_df <- getRwLSM(
   file_col = 'file_study_id',
   spkr_col = 'spkr_reclass_top_level') 
 
+window_size = 8
+windowed_liwcd <- windowed_liwcd %>%
+  groupby(file_study_id) %>%
+  slice(((window_size-1)*2):n()) %>%
+  ungroup()
 
 rw.rLSM.by.timePoint <- getAccomodation(
   df = windowed_liwcd, 
