@@ -34,10 +34,10 @@ cleanRoles <- function(df) {
                              c('Supportinig','Supporting') ~ 'supporting',
                              c('Clinician','clinician','single_clinician') ~ 'index_clinician',
                              .default = file_type),
-      file_id_full = paste(file_id,file_type,study, sep = "-"),
-      file_study_id = paste(file_id,study,sep = "-")
+      # file_id_full = paste(file_id,file_type,study, sep = "-"),
+      file_study_id = paste(file_id,study,sep = "-"),
+      file_study_ftype_id = paste(file_study_id,file_type,sep = "-")
     )
-  
   return(cleaned)
 }
 
@@ -66,6 +66,77 @@ cleanSpeech <- function(df, speechCol, word_count_thresh) {
   return(df)
 }
 
+getFileMetrics <- function(df, file_by_col) {
+  # recovers and saves file type for late rmerging
+  # file_types <- unique(df[,c('file_study_id','file_type')]) %>%
+  #   group_by(file_study_id) %>%
+  #   summarize(
+  #     file_type = case_match(n(),
+  #                            1 ~ 'index_only',
+  #                            2 ~ 'index_and_supporting',
+  #                            .default = NA))
+
+  tot_counts <- df %>%
+    group_by(!!sym(file_by_col)) %>%
+    summarise(
+      tot_wc = sum(word_count),
+      tot_turns = n()
+    )
+  print(names(tot_counts))
+  n_pt_spkrs <- df %>%
+    # filter(spkr_reclass_top_level != 'clinician') %>%
+    filter(spkr_reclass_top_level == 'parent') %>%
+    group_by(!!sym(file_by_col)) %>%
+    summarise(
+      n_pt_fam_sprks = n_distinct(speaker)
+    ) %>% ungroup()
+  print(names(n_pt_spkrs))
+  pt <- df %>%
+    # filter(spkr_reclass_top_level != 'clinician') %>%
+    filter(spkr_reclass_top_level == 'parent') %>%
+    group_by(!!sym(file_by_col), speaker) %>%
+    summarize(
+      pt_wc = sum(word_count),
+      pt_turn = n()
+    ) %>%
+    ungroup() %>%
+    group_by(!!sym(file_by_col)) %>%
+    summarize(
+      max_pt_fam_wc = max(pt_wc),
+      max_pt_fam_turn = max(pt_turn),
+      tot_pt_fam_wc = sum(pt_wc),
+      tot_pt_fam_turn = sum(pt_turn)
+    )
+  print(names(pt))
+  clin <- df %>%
+    filter(spkr_reclass_top_level == 'clinician') %>%
+    group_by(!!sym(file_by_col), speaker) %>%
+    summarize(
+      clin_wc = sum(word_count),
+      clin_turn = n()
+    ) %>%
+    ungroup() %>%
+    group_by(!!sym(file_by_col)) %>%
+    summarize(
+      max_clin_wc = max(clin_wc),
+      max_clin_turn = max(clin_turn),
+      tot_clin_wc = sum(clin_wc),
+      tot_clin_turn = sum(clin_turn)
+    )
+  print(names(clin))
+  # dfs <- list(file_types,tot_counts, pt, clin, n_pt_spkrs)
+  dfs <- list(tot_counts, pt, clin, n_pt_spkrs)
+  all <- reduce(dfs,full_join, by = file_by_col) %>%
+    rowwise() %>%
+    mutate(
+      prop_dom_clin_wc = max_clin_wc / tot_clin_wc,
+      prop_dom_clin_turn = max_clin_turn / tot_clin_turn,
+      prop_dom_pt_fam_wc = max_pt_fam_wc / tot_pt_fam_wc,
+      prop_dom_pt_fam_turn = max_pt_fam_turn / tot_pt_fam_turn
+    )
+  
+  return(all)
+}
 ##############
 ## 2. Smooth transcripts (combine adjacent text for same speaker)
 ##############
