@@ -4,63 +4,23 @@
 ############################################
 ############################################
 
-
+library(tidyverse)
 ############################################
 # read in and descriptive:
 ############################################
 
 dta_df <- haven::read_dta('/Volumes/LSM/Data/SDM_Bias_CONNECTS data for analysis.dta')
-table(all_data$study)
+cmbdMetrics_df <- read.csv('/Volumes/LSM/Data/pedsSurgery_lsm_lsa_metrics_11-29-2023.csv')
 all_data <- full_join(cmbdMetrics_df,dta_df, by = 'ParticipantID_combined',relationship = "many-to-many")
-# scatter.smooth(y=file_metrics$prop_dom_pt_fam_wc,x=as.factor(file_metrics$n_pt_fam_sprks))
+table(all_data$study)
 
+# We decided to look at only the 'index clinician' portion of the transcript
+# so this drops all of the 'supporting' clinician variables. These were run 
+# separately in this data set. We did run them together, but saw they were very different
+# from just invidual clinicians. 
 
 index_clin_df <- all_data %>%
   filter(ftype == 'index_clinician')
-
-# index_clin_df %>%
-#   # ggplot(aes(x = rLSM.clinician)) +
-#   ggplot(aes(x = baseline_lsm)) +
-#   # ggplot(aes(x = conv_lsm)) +
-#   # ggplot(aes(x = accom.4.parent)) +
-#   geom_histogram() +
-#   ggthemes::theme_tufte()
-# 
-# index_clin_df %>% select(rLSM.clinician, conv_lsm, baseline_lsm,accom.4.clinician, study) %>%
-#   gtsummary::tbl_summary(
-#     # by = study,
-#     missing = 'no'
-#   ) %>%
-#   gtsummary::as_gt() %>%
-#   gt::gtsave('descrpitives.docx')
-# 
-# # scatter.smooth(index_clin_df$baseline_lsm,index_clin_df$rLSM.clinician)
-# 
-# index_clin_df %>% select(rLSM.clinician, conv_lsm, accom.4.clinician, Ethnicity_parent) %>%
-#   mutate(
-#     Ethnicity_parent_dic = case_match(Ethnicity_parent,
-#                                       1 ~ 1, 
-#                                       2 ~ 2,
-#                                       .default = 3)
-#   ) %>%
-#   select(-Ethnicity_parent) %>%
-#   gtsummary::tbl_summary(
-#     by = Ethnicity_parent_dic,
-#     missing = 'no'
-#   ) %>%
-#   gtsummary::as_gt() %>%
-#   gt::gtsave('descrpitives.docx')
-# 
-# 
-# index_clin_df %>% select(rLSM.clinician, conv_lsm, accom.4.clinician, file_type ) %>%
-#   gtsummary::tbl_summary(
-#     by = file_type,
-#     missing = 'no'
-#   ) %>%
-#   gtsummary::as_gt() %>%
-#   gt::gtsave('descrpitives.docx')
-
-
 
 
 to_factor <- c('YearsExperience_combined','Predisposition_surgery','Ethnicity_parent_dic',
@@ -72,7 +32,7 @@ to_factor <- c('YearsExperience_combined','Predisposition_surgery','Ethnicity_pa
 to_scale <- c('accom.4.clinician','conv_lsm','rLSM.clinician','baseline_lsm',
               'accom.4.parent','rLSM.parent')
 
-m.data <- index_clin_df %>%
+m.data <- index_clin_df %>% # creating a data set for the models
   select(
     conv_lsm,accom.4.clinician,rLSM.clinician,baseline_lsm,
     rLSM.parent,accom.4.parent,
